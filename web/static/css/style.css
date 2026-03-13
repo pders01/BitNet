@@ -1,0 +1,28 @@
+/* Streaming cursor */
+.streaming::after {
+  content: "\2588";
+  color: oklch(var(--bc));
+  opacity: 0.6;
+  animation: blink 0.7s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* Sidebar conversation actions */
+.conv-actions {
+  display: none;
+  gap: 2px;
+}
+
+li:hover .conv-actions,
+li.active .conv-actions {
+  display: flex;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.25); }

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="black">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BitNet Chat</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="h-dvh flex overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-60 bg-neutral flex flex-col shrink-0">
+    <div class="p-2">
+      <button id="new-chat" class="btn btn-ghost btn-sm w-full justify-start gap-2 font-normal">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        New chat
+      </button>
+    </div>
+
+    <ul id="conv-list" class="menu menu-sm flex-1 overflow-y-auto px-2 gap-0.5"></ul>
+
+    <div class="p-3 border-t border-neutral-content/10">
+      <div class="flex items-center gap-2 text-xs text-neutral-content/40">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-success"></span>
+        BitNet 2.4B · 1.58-bit
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col min-w-0">
+    <!-- Header -->
+    <div class="h-12 flex items-center px-4 border-b border-base-content/10 shrink-0">
+      <h1 id="conv-title" class="text-sm font-medium truncate text-base-content/70">Select or start a conversation</h1>
+    </div>
+
+    <!-- Messages -->
+    <div id="messages" class="flex-1 overflow-y-auto">
+      <div id="msg-inner" class="max-w-3xl mx-auto px-6 py-6 space-y-1"></div>
+      <div id="empty-state" class="flex items-center justify-center h-full">
+        <span class="text-base-content/25 text-sm">Start a new conversation</span>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="px-6 pb-6 pt-4">
+      <div class="max-w-3xl mx-auto flex items-end gap-2">
+        <textarea
+          id="input"
+          rows="1"
+          placeholder="Message BitNet..."
+          class="textarea bg-neutral text-neutral-content border-none flex-1 text-sm leading-6 resize-none focus:outline-none"
+          style="min-height: 48px; max-height: 160px; field-sizing: content;"
+          autofocus
+        ></textarea>
+        <button id="send" class="btn btn-neutral h-12 min-h-12">Send</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Rename modal -->
+  <dialog id="rename-modal" class="modal">
+    <div class="modal-box bg-neutral w-80">
+      <h3 class="text-lg font-bold mb-4">Rename conversation</h3>
+      <input id="rename-input" type="text" class="input input-bordered w-full" />
+      <div class="modal-action">
+        <button id="rename-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+        <button id="rename-confirm" class="btn btn-sm">Save</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <!-- Delete confirm modal -->
+  <dialog id="delete-modal" class="modal">
+    <div class="modal-box bg-neutral w-80">
+      <h3 class="text-lg font-bold">Delete conversation?</h3>
+      <p class="py-4 text-sm opacity-50">This cannot be undone.</p>
+      <div class="modal-action">
+        <button id="delete-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+        <button id="delete-confirm" class="btn btn-error btn-sm">Delete</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
