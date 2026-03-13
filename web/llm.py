@@ -146,9 +146,9 @@ def generate(messages, max_tokens=512, temperature=0.7,
 # --- Strategies ---
 
 VERIFY_PROMPT = (
-    "Review the assistant's previous answer for errors, inaccuracies, or "
-    "incomplete reasoning. If the answer is correct, repeat it concisely. "
-    "If it has problems, provide a corrected answer."
+    "Check the above answer for factual errors or weak reasoning. "
+    "Now write an improved, corrected version of the answer. "
+    "Output ONLY the improved answer, nothing else."
 )
 
 
@@ -221,8 +221,9 @@ def strategy_decompose(messages, temperature=0.7, system_prompt=None):
     context = "\n\n".join(sub_answers)
     synthesis_messages = messages[:-1] + [
         {"role": "user", "content": (
-            f"Based on these findings:\n\n{context}\n\n"
-            f"Now answer the original question: {user_question}"
+            f"I researched these sub-topics:\n\n{context}\n\n"
+            f"Using these findings, write a comprehensive answer to: {user_question}\n"
+            f"Write a clean, well-structured response. Do not repeat the Q&A format above."
         )},
     ]
     return generate_stream(
