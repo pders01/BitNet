@@ -7,7 +7,10 @@ from web.db import (
     init_db, create_conversation, list_conversations, get_conversation,
     update_conversation, delete_conversation, add_message, get_messages, auto_title,
 )
-from web.llm import generate_stream, warm_cache, MODEL, THREADS
+from web.llm import (
+    generate_stream, warm_cache, estimate_prompt_tokens,
+    MODEL, THREADS, CONTEXT_WINDOW,
+)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
@@ -69,6 +72,19 @@ def trim_context(messages):
     return messages[-MAX_CONTEXT_MESSAGES:]
 
 
+@app.route("/api/context-info", methods=["POST"])
+def api_context_info():
+    """Return estimated token usage for a set of messages."""
+    data = request.json or {}
+    messages = data.get("messages", [])
+    system_prompt = data.get("system_prompt")
+    prompt_tokens = estimate_prompt_tokens(messages, system_prompt=system_prompt)
+    return jsonify({
+        "prompt_tokens": prompt_tokens,
+        "context_window": CONTEXT_WINDOW,
+    })
+
+
 @app.route("/api/conversations/<int:conv_id>/chat", methods=["POST"])
 def api_chat(conv_id):
     conv = get_conversation(conv_id)
@@ -80,6 +96,9 @@ def api_chat(conv_id):
     if not user_content:
         return jsonify({"error": "Empty message"}), 400
 
+    temperature = float(data.get("temperature", 0.7))
+    system_prompt = data.get("system_prompt") or None
+
     add_message(conv_id, "user", user_content)
     auto_title(conv_id)
 
@@ -87,10 +106,19 @@ def api_chat(conv_id):
     msg_dicts = [{"role": m["role"], "content": m["content"]} for m in messages]
     msg_dicts = trim_context(msg_dicts)
 
+    prompt_tokens = estimate_prompt_tokens(msg_dicts, system_prompt=system_prompt)
+
     def event_stream():
+        # Send token estimate at start
+        yield f"data: {json.dumps({'token_usage': {'prompt_tokens': prompt_tokens, 'context_window': CONTEXT_WINDOW}})}\n\n"
+
         full_response = []
         try:
-            for chunk in generate_stream(msg_dicts):
+            for chunk in generate_stream(
+                msg_dicts,
+                temperature=temperature,
+                system_prompt=system_prompt,
+            ):
                 full_response.append(chunk)
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
         except Exception as e:

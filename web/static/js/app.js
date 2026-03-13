@@ -2,6 +2,65 @@
  * BitNet Chat — Frontend
  */
 
+import { codeToHtml, bundledLanguages } from "https://esm.sh/shiki@3";
+
+// --- Shiki highlighter ---
+
+const SHIKI_LIGHT_THEME = "github-light";
+const SHIKI_DARK_THEME = "github-dark";
+
+function getShikiTheme() {
+  var dt = document.documentElement.getAttribute("data-theme");
+  return dt === "corporate" ? SHIKI_LIGHT_THEME : SHIKI_DARK_THEME;
+}
+
+/**
+ * Parse markdown content and render code fences with Shiki.
+ * Returns HTML string with highlighted code blocks and escaped text.
+ */
+async function renderMarkdown(text) {
+  var parts = [];
+  var regex = /```(\w*)\n([\s\S]*?)```/g;
+  var lastIndex = 0;
+  var match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Text before the code block
+    if (match.index > lastIndex) {
+      parts.push(escapeHtml(text.slice(lastIndex, match.index)));
+    }
+
+    var lang = match[1] || "text";
+    var code = match[2].replace(/\n$/, "");
+
+    // Only highlight if language is supported, otherwise fall back to text
+    var effectiveLang = (lang in bundledLanguages) ? lang : "text";
+    try {
+      var html = await codeToHtml(code, {
+        lang: effectiveLang,
+        theme: getShikiTheme(),
+      });
+      parts.push('<div class="code-block relative my-2">' +
+        '<div class="code-block-header flex items-center justify-between px-3 py-1 text-xs opacity-60">' +
+          '<span>' + escapeHtml(lang || "text") + '</span>' +
+          '<button class="copy-btn btn btn-ghost btn-xs" onclick="navigator.clipboard.writeText(this.closest(\'.code-block\').querySelector(\'code\').textContent)">Copy</button>' +
+        '</div>' +
+        html + '</div>');
+    } catch (e) {
+      parts.push('<pre class="my-2 p-3 bg-base-300 rounded-lg overflow-x-auto"><code>' + escapeHtml(code) + '</code></pre>');
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Remaining text after last code block
+  if (lastIndex < text.length) {
+    parts.push(escapeHtml(text.slice(lastIndex)));
+  }
+
+  return parts.join("");
+}
+
 // --- DOM refs ---
 
 const msgInner = document.getElementById("msg-inner");
@@ -20,12 +79,112 @@ const deleteConfirmBtn = document.getElementById("delete-confirm");
 const deleteCancelBtn = document.getElementById("delete-cancel");
 const messagesContainer = document.getElementById("messages");
 
+const settingsToggle = document.getElementById("settings-toggle");
+const settingsPanel = document.getElementById("settings-panel");
+const tempSlider = document.getElementById("temp-slider");
+const tempValue = document.getElementById("temp-value");
+const systemPromptEl = document.getElementById("system-prompt");
+const contextBar = document.getElementById("context-bar");
+const contextLabel = document.getElementById("context-label");
+const contextFill = document.getElementById("context-fill");
+
 // --- State ---
 
 let activeConvId = null;
 let generating = false;
 let renameTarget = null;
 let deleteTarget = null;
+
+// --- Presets ---
+
+const PRESETS = {
+  precise: {
+    temperature: 0.3,
+    system: "You are a precise, factual assistant. Think step by step before answering. Be concise and accurate. If you are unsure, say so.",
+  },
+  balanced: {
+    temperature: 0.7,
+    system: "You are a helpful assistant. Think step by step when solving problems.",
+  },
+  creative: {
+    temperature: 1.0,
+    system: "You are a creative writing assistant. Be imaginative, expressive, and original.",
+  },
+  coder: {
+    temperature: 0.2,
+    system: "You are a coding assistant. Write clean, correct code. Think step by step. Show only the code unless an explanation is requested. Be concise.",
+  },
+};
+
+function getSettings() {
+  return {
+    temperature: parseFloat(tempSlider.value),
+    system_prompt: systemPromptEl.value.trim() || null,
+  };
+}
+
+function applyPreset(name) {
+  var preset = PRESETS[name];
+  if (!preset) return;
+  tempSlider.value = preset.temperature;
+  tempValue.textContent = preset.temperature.toFixed(1);
+  systemPromptEl.value = preset.system;
+  localStorage.setItem("bitnet-preset", name);
+  localStorage.setItem("bitnet-temperature", preset.temperature);
+  localStorage.setItem("bitnet-system-prompt", preset.system);
+  updatePresetButtons(name);
+}
+
+function updatePresetButtons(activeName) {
+  document.querySelectorAll(".preset-btn").forEach(function (btn) {
+    if (btn.dataset.preset === activeName) {
+      btn.classList.add("btn-primary");
+    } else {
+      btn.classList.remove("btn-primary");
+    }
+  });
+}
+
+// Settings panel toggle
+settingsToggle.addEventListener("click", function () {
+  settingsPanel.classList.toggle("hidden");
+});
+
+// Preset buttons
+document.querySelectorAll(".preset-btn").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    applyPreset(btn.dataset.preset);
+  });
+});
+
+// Temperature slider
+tempSlider.addEventListener("input", function () {
+  tempValue.textContent = parseFloat(tempSlider.value).toFixed(1);
+  localStorage.setItem("bitnet-temperature", tempSlider.value);
+  updatePresetButtons(null);  // deselect presets on manual change
+});
+
+// System prompt persistence
+systemPromptEl.addEventListener("input", function () {
+  localStorage.setItem("bitnet-system-prompt", systemPromptEl.value);
+  updatePresetButtons(null);
+});
+
+// Restore saved settings
+(function restoreSettings() {
+  var savedPreset = localStorage.getItem("bitnet-preset");
+  if (savedPreset && PRESETS[savedPreset]) {
+    applyPreset(savedPreset);
+  } else {
+    var savedTemp = localStorage.getItem("bitnet-temperature");
+    if (savedTemp) {
+      tempSlider.value = savedTemp;
+      tempValue.textContent = parseFloat(savedTemp).toFixed(1);
+    }
+    var savedSystem = localStorage.getItem("bitnet-system-prompt");
+    if (savedSystem) systemPromptEl.value = savedSystem;
+  }
+})();
 
 // --- API ---
 
@@ -177,7 +336,8 @@ deleteCancelBtn.addEventListener("click", function () {
 
 // --- Messages ---
 
-function appendMessage(role, content) {
+function appendMessage(role, content, opts) {
+  opts = opts || {};
   var wrapper = document.createElement("div");
   wrapper.className = role === "user" ? "chat chat-end" : "chat chat-start";
 
@@ -188,15 +348,32 @@ function appendMessage(role, content) {
   var bubble = document.createElement("div");
   if (role === "user") {
     bubble.className = "chat-bubble bg-base-content text-base-100 text-sm whitespace-pre-wrap";
+    bubble.textContent = content;
   } else {
     bubble.className = "chat-bubble bg-base-200 text-base-content text-sm whitespace-pre-wrap";
+    if (opts.streaming) {
+      // During streaming: plain text, will be finalized later
+      bubble.textContent = content;
+    } else {
+      // Historical messages: render immediately (async)
+      bubble.innerHTML = '<span class="opacity-30 text-xs">...</span>';
+      renderMarkdown(content).then(function (html) {
+        bubble.classList.remove("whitespace-pre-wrap");
+        bubble.innerHTML = html;
+      });
+    }
   }
-  bubble.textContent = content;
 
   wrapper.appendChild(header);
   wrapper.appendChild(bubble);
   msgInner.appendChild(wrapper);
   return bubble;
+}
+
+async function finalizeMessage(bubble, content) {
+  var html = await renderMarkdown(content);
+  bubble.classList.remove("whitespace-pre-wrap");
+  bubble.innerHTML = html;
 }
 
 function scrollToBottom() {
@@ -228,16 +405,21 @@ async function send() {
   appendMessage("user", text);
   scrollToBottom();
 
-  var assistantBubble = appendMessage("assistant", "");
+  var assistantBubble = appendMessage("assistant", "", { streaming: true });
   assistantBubble.classList.add("streaming");
   var fullContent = "";
   var hadError = false;
 
   try {
+    var settings = getSettings();
     var res = await fetch("/api/conversations/" + activeConvId + "/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text }),
+      body: JSON.stringify({
+        content: text,
+        temperature: settings.temperature,
+        system_prompt: settings.system_prompt,
+      }),
     });
 
     if (!res.ok) {
@@ -266,6 +448,9 @@ async function send() {
             hadError = true;
             throw new Error(data.error);
           }
+          if (data.token_usage) {
+            updateContextBar(data.token_usage.prompt_tokens, data.token_usage.context_window);
+          }
           if (data.content) {
             fullContent += data.content;
             assistantBubble.textContent = fullContent;
@@ -287,6 +472,9 @@ async function send() {
   }
 
   assistantBubble.classList.remove("streaming");
+  if (fullContent && !hadError) {
+    await finalizeMessage(assistantBubble, fullContent);
+  }
   generating = false;
   sendBtn.disabled = false;
   inputEl.focus();
@@ -341,6 +529,24 @@ inputEl.addEventListener("input", function () {
   inputEl.style.height = "auto";
   inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + "px";
 });
+
+// --- Context bar ---
+
+function updateContextBar(promptTokens, contextWindow) {
+  contextBar.classList.remove("hidden");
+  var pct = Math.min(100, (promptTokens / contextWindow) * 100);
+  contextLabel.textContent = promptTokens + " / " + contextWindow;
+  contextFill.style.width = pct + "%";
+  // Color warning at 75%, danger at 90%
+  contextFill.classList.remove("bg-primary", "bg-warning", "bg-error");
+  if (pct >= 90) {
+    contextFill.classList.add("bg-error");
+  } else if (pct >= 75) {
+    contextFill.classList.add("bg-warning");
+  } else {
+    contextFill.classList.add("bg-primary");
+  }
+}
 
 // --- Icons ---
 

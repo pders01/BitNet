@@ -38,8 +38,54 @@
   <!-- Main -->
   <main class="flex-1 flex flex-col min-w-0">
     <!-- Header -->
-    <div class="h-12 flex items-center px-4 border-b border-base-content/10 shrink-0">
+    <div class="h-12 flex items-center justify-between px-4 border-b border-base-content/10 shrink-0">
       <h1 id="conv-title" class="text-sm font-medium truncate text-base-content/70">Select or start a conversation</h1>
+      <div class="flex items-center gap-3">
+        <!-- Context window bar -->
+        <div id="context-bar" class="flex items-center gap-2 text-xs text-base-content/50 hidden">
+          <span id="context-label">0 / 4096</span>
+          <div class="w-24 h-1.5 bg-base-200 rounded-full overflow-hidden">
+            <div id="context-fill" class="h-full bg-primary rounded-full transition-all" style="width: 0%"></div>
+          </div>
+        </div>
+        <!-- Settings toggle -->
+        <button id="settings-toggle" class="btn btn-ghost btn-xs btn-square" title="Settings">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings panel (collapsible) -->
+    <div id="settings-panel" class="hidden border-b border-base-content/10 bg-base-200/50">
+      <div class="max-w-3xl mx-auto px-6 py-4 space-y-4">
+        <!-- Presets -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium text-base-content/60 w-20 shrink-0">Preset</span>
+          <div class="flex gap-1.5">
+            <button class="preset-btn btn btn-xs" data-preset="precise">Precise</button>
+            <button class="preset-btn btn btn-xs" data-preset="balanced">Balanced</button>
+            <button class="preset-btn btn btn-xs" data-preset="creative">Creative</button>
+            <button class="preset-btn btn btn-xs" data-preset="coder">Coder</button>
+          </div>
+        </div>
+        <!-- Temperature -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium text-base-content/60 w-20 shrink-0">Temp</span>
+          <input id="temp-slider" type="range" min="0" max="1.5" step="0.1" value="0.7" class="range range-xs range-primary flex-1" />
+          <span id="temp-value" class="text-xs font-mono w-8 text-right">0.7</span>
+        </div>
+        <!-- System prompt -->
+        <div class="flex items-start gap-2">
+          <span class="text-xs font-medium text-base-content/60 w-20 shrink-0 pt-1">System</span>
+          <textarea
+            id="system-prompt"
+            rows="2"
+            class="textarea textarea-bordered textarea-xs flex-1 text-xs leading-5 resize-none"
+            style="field-sizing: content; max-height: 120px;"
+            placeholder="You are a helpful assistant."
+          ></textarea>
+        </div>
+      </div>
     </div>
 
     <!-- Messages -->
@@ -92,6 +138,6 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 
-  <script src="/static/js/app.js"></script>
+  <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

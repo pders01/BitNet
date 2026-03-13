@@ -21,6 +21,28 @@ li.active .conv-actions {
   display: flex;
 }
 
+/* Code blocks (Shiki) */
+.code-block {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.code-block-header {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.copy-btn:hover {
+  opacity: 1;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
