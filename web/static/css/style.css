@@ -10,6 +10,12 @@
   50% { opacity: 0; }
 }
 
+/* Sidebar conversation items — constrain for truncation */
+#conv-list li {
+  max-width: 100%;
+  overflow: hidden;
+}
+
 /* Sidebar conversation actions */
 .conv-actions {
   display: none;
@@ -19,6 +25,42 @@
 li:hover .conv-actions,
 li.active .conv-actions {
   display: flex;
+}
+
+/* Markdown prose inside chat bubbles */
+.chat-bubble h1, .chat-bubble h2, .chat-bubble h3 {
+  font-weight: 700;
+  margin: 0.5em 0 0.25em;
+}
+.chat-bubble h1 { font-size: 1.1em; }
+.chat-bubble h2 { font-size: 1em; }
+.chat-bubble h3 { font-size: 0.95em; }
+
+.chat-bubble p { margin: 0.4em 0; }
+
+.chat-bubble ul, .chat-bubble ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+.chat-bubble ul { list-style: disc; }
+.chat-bubble ol { list-style: decimal; }
+.chat-bubble li { margin: 0.15em 0; }
+
+.chat-bubble strong { font-weight: 700; }
+.chat-bubble em { font-style: italic; }
+
+.chat-bubble code:not(pre code) {
+  background: rgba(127, 127, 127, 0.15);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+
+.chat-bubble blockquote {
+  border-left: 3px solid rgba(127, 127, 127, 0.3);
+  padding-left: 0.75em;
+  margin: 0.4em 0;
+  opacity: 0.8;
 }
 
 /* Code blocks (Shiki) */

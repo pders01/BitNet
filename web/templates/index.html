@@ -20,7 +20,7 @@
       </button>
     </div>
 
-    <ul id="conv-list" class="menu menu-sm flex-1 overflow-y-auto px-2 gap-0.5 w-full"></ul>
+    <ul id="conv-list" class="menu menu-sm flex-1 overflow-y-auto overflow-x-hidden px-2 gap-0.5 w-full"></ul>
 
     <div class="p-3 border-t border-base-content/10 space-y-2">
       <select id="theme-select" class="select select-xs w-full">
@@ -66,6 +66,17 @@
             <button class="preset-btn btn btn-xs" data-preset="balanced">Balanced</button>
             <button class="preset-btn btn btn-xs" data-preset="creative">Creative</button>
             <button class="preset-btn btn btn-xs" data-preset="coder">Coder</button>
+            <button class="preset-btn btn btn-xs" data-preset="node0">node0</button>
+          </div>
+        </div>
+        <!-- Strategy -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium text-base-content/60 w-20 shrink-0">Strategy</span>
+          <div class="flex gap-1.5">
+            <button class="strategy-btn btn btn-xs btn-primary" data-strategy="none">Direct</button>
+            <button class="strategy-btn btn btn-xs" data-strategy="verify">Verify</button>
+            <button class="strategy-btn btn btn-xs" data-strategy="best_of_n">Best of 3</button>
+            <button class="strategy-btn btn btn-xs" data-strategy="decompose">Decompose</button>
           </div>
         </div>
         <!-- Temperature -->

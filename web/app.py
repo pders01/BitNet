@@ -9,6 +9,7 @@ from web.db import (
 )
 from web.llm import (
     generate_stream, warm_cache, estimate_prompt_tokens,
+    strategy_verify, strategy_best_of_n, strategy_decompose,
     MODEL, THREADS, CONTEXT_WINDOW,
 )
 
@@ -98,6 +99,7 @@ def api_chat(conv_id):
 
     temperature = float(data.get("temperature", 0.7))
     system_prompt = data.get("system_prompt") or None
+    strategy = data.get("strategy", "none")  # none, verify, best_of_n, decompose
 
     add_message(conv_id, "user", user_content)
     auto_title(conv_id)
@@ -114,13 +116,60 @@ def api_chat(conv_id):
 
         full_response = []
         try:
-            for chunk in generate_stream(
-                msg_dicts,
-                temperature=temperature,
-                system_prompt=system_prompt,
-            ):
-                full_response.append(chunk)
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
+            if strategy == "verify":
+                # Phase 1: initial generation
+                yield f"data: {json.dumps({'phase': 'Generating draft...'})}\n\n"
+                initial_chunks = []
+                for chunk in generate_stream(
+                    msg_dicts, temperature=temperature,
+                    system_prompt=system_prompt,
+                ):
+                    initial_chunks.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+                initial_answer = "".join(initial_chunks).strip()
+                if not initial_answer:
+                    yield f"data: {json.dumps({'done': True, 'conversation': get_conversation(conv_id)})}\n\n"
+                    return
+
+                # Phase 2: verification — replace content
+                yield f"data: {json.dumps({'phase': 'Verifying...', 'replace': True})}\n\n"
+                for chunk in strategy_verify(
+                    msg_dicts, initial_answer,
+                    temperature=temperature,
+                    system_prompt=system_prompt,
+                ):
+                    full_response.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+            elif strategy == "best_of_n":
+                yield f"data: {json.dumps({'phase': 'Generating 3 candidates...'})}\n\n"
+                best = strategy_best_of_n(
+                    msg_dicts, n=3, temperature=temperature,
+                    system_prompt=system_prompt,
+                )
+                if best:
+                    full_response.append(best)
+                    yield f"data: {json.dumps({'content': best})}\n\n"
+
+            elif strategy == "decompose":
+                yield f"data: {json.dumps({'phase': 'Breaking down the question...'})}\n\n"
+                for chunk in strategy_decompose(
+                    msg_dicts, temperature=temperature,
+                    system_prompt=system_prompt,
+                ):
+                    full_response.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+            else:
+                # Default: direct generation
+                for chunk in generate_stream(
+                    msg_dicts, temperature=temperature,
+                    system_prompt=system_prompt,
+                ):
+                    full_response.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
             return

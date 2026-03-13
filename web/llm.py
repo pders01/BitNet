@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
 MODEL = os.environ.get("BITNET_MODEL", "models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf")
 CLI = "./build/bin/llama-cli"
@@ -60,7 +61,8 @@ def warm_cache():
 
 
 def generate_stream(messages, max_tokens=512, temperature=0.7,
-                     repeat_penalty=1.1, system_prompt=None):
+                     repeat_penalty=1.1, system_prompt=None,
+                     use_cache=True):
     """Yield text chunks as they're generated."""
     prompt = build_prompt(messages, system_prompt=system_prompt)
     cmd = [
@@ -68,11 +70,12 @@ def generate_stream(messages, max_tokens=512, temperature=0.7,
         "-n", str(max_tokens), "-t", THREADS,
         "--no-display-prompt", "--temp", str(temperature),
         "--repeat-penalty", str(repeat_penalty),
-        "--prompt-cache", PROMPT_CACHE,
         "-r", "<|im_end|>",
         "-r", "<|im_start|>",
         "-r", "<|im_sep|>",
     ]
+    if use_cache:
+        cmd += ["--prompt-cache", PROMPT_CACHE]
 
     try:
         proc = subprocess.Popen(
@@ -85,9 +88,12 @@ def generate_stream(messages, max_tokens=512, temperature=0.7,
     buffer = ""
     max_stop_len = max(len(s) for s in STOP_SEQUENCES)
     produced_output = False
+    decoder = __import__("codecs").getincrementaldecoder("utf-8")("replace")
 
     for raw_byte in iter(lambda: proc.stdout.read(1), b""):
-        char = raw_byte.decode("utf-8", errors="replace")
+        char = decoder.decode(raw_byte, False)
+        if not char:
+            continue  # incomplete multi-byte sequence, keep reading
         buffer += char
 
         stopped = False
@@ -124,3 +130,102 @@ def generate_stream(messages, max_tokens=512, temperature=0.7,
     if exit_code != 0 and not produced_output:
         stderr_out = proc.stderr.read().decode("utf-8", errors="replace")[-200:]
         raise RuntimeError(f"llama-cli exited with code {exit_code}: {stderr_out}")
+
+
+def generate(messages, max_tokens=512, temperature=0.7,
+             repeat_penalty=1.1, system_prompt=None, use_cache=True):
+    """Non-streaming generation — returns complete text."""
+    chunks = list(generate_stream(
+        messages, max_tokens=max_tokens, temperature=temperature,
+        repeat_penalty=repeat_penalty, system_prompt=system_prompt,
+        use_cache=use_cache,
+    ))
+    return "".join(chunks).strip()
+
+
+# --- Strategies ---
+
+VERIFY_PROMPT = (
+    "Review the assistant's previous answer for errors, inaccuracies, or "
+    "incomplete reasoning. If the answer is correct, repeat it concisely. "
+    "If it has problems, provide a corrected answer."
+)
+
+
+def strategy_verify(messages, initial_answer, temperature=0.7, system_prompt=None):
+    """Second-pass verification: ask the model to review its own answer."""
+    verify_messages = messages + [
+        {"role": "assistant", "content": initial_answer},
+        {"role": "user", "content": VERIFY_PROMPT},
+    ]
+    return generate_stream(
+        verify_messages, temperature=max(temperature - 0.2, 0.1),
+        system_prompt=system_prompt,
+    )
+
+
+def strategy_best_of_n(messages, n=3, temperature=0.7, system_prompt=None):
+    """Generate N responses and return the longest (proxy for most thorough)."""
+    def _gen():
+        return generate(
+            messages, temperature=temperature,
+            system_prompt=system_prompt,
+            use_cache=False,  # parallel runs can't share the cache file
+        )
+
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        futures = [pool.submit(_gen) for _ in range(n)]
+        results = [f.result() for f in futures]
+
+    # Pick the longest non-empty response as a quality heuristic
+    results = [r for r in results if r]
+    if not results:
+        return ""
+    return max(results, key=len)
+
+
+DECOMPOSE_PROMPT = (
+    "Break this question into 2-3 simpler sub-questions that would help "
+    "answer it. List only the sub-questions, one per line, no numbering."
+)
+
+
+def strategy_decompose(messages, temperature=0.7, system_prompt=None):
+    """Decompose → answer sub-questions → synthesize."""
+    # Step 1: Get sub-questions
+    user_question = messages[-1]["content"]
+    decompose_messages = messages[:-1] + [
+        {"role": "user", "content": f"{user_question}\n\n{DECOMPOSE_PROMPT}"},
+    ]
+    sub_questions_text = generate(
+        decompose_messages, temperature=0.3, max_tokens=256,
+        system_prompt=system_prompt,
+    )
+
+    sub_questions = [q.strip().lstrip("- ") for q in sub_questions_text.strip().split("\n") if q.strip()]
+    if not sub_questions:
+        # Fallback: just answer directly
+        return generate_stream(messages, temperature=temperature, system_prompt=system_prompt)
+
+    # Step 2: Answer each sub-question
+    sub_answers = []
+    for sq in sub_questions[:3]:  # cap at 3
+        answer = generate(
+            messages[:-1] + [{"role": "user", "content": sq}],
+            temperature=temperature, max_tokens=256,
+            system_prompt=system_prompt,
+        )
+        sub_answers.append(f"Q: {sq}\nA: {answer}")
+
+    # Step 3: Synthesize
+    context = "\n\n".join(sub_answers)
+    synthesis_messages = messages[:-1] + [
+        {"role": "user", "content": (
+            f"Based on these findings:\n\n{context}\n\n"
+            f"Now answer the original question: {user_question}"
+        )},
+    ]
+    return generate_stream(
+        synthesis_messages, temperature=temperature,
+        system_prompt=system_prompt,
+    )

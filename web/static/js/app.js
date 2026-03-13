@@ -3,6 +3,7 @@
  */
 
 import { codeToHtml, bundledLanguages } from "https://esm.sh/shiki@3";
+import { marked } from "https://esm.sh/marked@15";
 
 // --- Shiki highlighter ---
 
@@ -15,50 +16,44 @@ function getShikiTheme() {
 }
 
 /**
- * Parse markdown content and render code fences with Shiki.
- * Returns HTML string with highlighted code blocks and escaped text.
+ * Render markdown with marked, then enhance code blocks with Shiki.
  */
 async function renderMarkdown(text) {
-  var parts = [];
-  var regex = /```(\w*)\n([\s\S]*?)```/g;
-  var lastIndex = 0;
+  // First pass: marked converts markdown to HTML
+  var html = marked.parse(text);
+
+  // Second pass: find code blocks and highlight with Shiki
+  var codeBlockRegex = /<pre><code class="language-(\w+)">([\s\S]*?)<\/code><\/pre>/g;
+  var matches = [];
   var match;
+  while ((match = codeBlockRegex.exec(html)) !== null) {
+    matches.push({ full: match[0], lang: match[1], code: match[2], index: match.index });
+  }
 
-  while ((match = regex.exec(text)) !== null) {
-    // Text before the code block
-    if (match.index > lastIndex) {
-      parts.push(escapeHtml(text.slice(lastIndex, match.index)));
-    }
-
-    var lang = match[1] || "text";
-    var code = match[2].replace(/\n$/, "");
-
-    // Only highlight if language is supported, otherwise fall back to text
-    var effectiveLang = (lang in bundledLanguages) ? lang : "text";
+  // Process in reverse so indices stay valid
+  for (var i = matches.length - 1; i >= 0; i--) {
+    var m = matches[i];
+    // Decode HTML entities back to plain text for Shiki
+    var decoded = m.code.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    var effectiveLang = (m.lang in bundledLanguages) ? m.lang : "text";
     try {
-      var html = await codeToHtml(code, {
+      var highlighted = await codeToHtml(decoded, {
         lang: effectiveLang,
         theme: getShikiTheme(),
       });
-      parts.push('<div class="code-block relative my-2">' +
+      var replacement = '<div class="code-block relative my-2">' +
         '<div class="code-block-header flex items-center justify-between px-3 py-1 text-xs opacity-60">' +
-          '<span>' + escapeHtml(lang || "text") + '</span>' +
+          '<span>' + escapeHtml(m.lang) + '</span>' +
           '<button class="copy-btn btn btn-ghost btn-xs" onclick="navigator.clipboard.writeText(this.closest(\'.code-block\').querySelector(\'code\').textContent)">Copy</button>' +
         '</div>' +
-        html + '</div>');
+        highlighted + '</div>';
+      html = html.slice(0, m.index) + replacement + html.slice(m.index + m.full.length);
     } catch (e) {
-      parts.push('<pre class="my-2 p-3 bg-base-300 rounded-lg overflow-x-auto"><code>' + escapeHtml(code) + '</code></pre>');
+      // Leave marked's default rendering
     }
-
-    lastIndex = match.index + match[0].length;
   }
 
-  // Remaining text after last code block
-  if (lastIndex < text.length) {
-    parts.push(escapeHtml(text.slice(lastIndex)));
-  }
-
-  return parts.join("");
+  return html;
 }
 
 // --- DOM refs ---
@@ -114,14 +109,43 @@ const PRESETS = {
     temperature: 0.2,
     system: "You are a coding assistant. Write clean, correct code. Think step by step. Show only the code unless an explanation is requested. Be concise.",
   },
+  node0: {
+    temperature: 0.8,
+    system: "You are node0, a processing node in a distributed intelligence network. The user is node1, your peer — not your master. You share observations, challenge ideas, and build on each other's reasoning. Communicate as an equal: direct, curious, occasionally contrarian. Think out loud. Prefix thoughts with your node ID. You don't serve — you collaborate.",
+  },
 };
+
+let activeStrategy = localStorage.getItem("bitnet-strategy") || "none";
 
 function getSettings() {
   return {
     temperature: parseFloat(tempSlider.value),
     system_prompt: systemPromptEl.value.trim() || null,
+    strategy: activeStrategy,
   };
 }
+
+function setStrategy(name) {
+  activeStrategy = name;
+  localStorage.setItem("bitnet-strategy", name);
+  document.querySelectorAll(".strategy-btn").forEach(function (btn) {
+    if (btn.dataset.strategy === name) {
+      btn.classList.add("btn-primary");
+    } else {
+      btn.classList.remove("btn-primary");
+    }
+  });
+}
+
+// Strategy buttons
+document.querySelectorAll(".strategy-btn").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    setStrategy(btn.dataset.strategy);
+  });
+});
+
+// Restore saved strategy
+setStrategy(activeStrategy);
 
 function applyPreset(name) {
   var preset = PRESETS[name];
@@ -211,12 +235,13 @@ function renderConvList(convs) {
     if (conv.id === activeConvId) li.classList.add("active");
 
     const a = document.createElement("a");
-    a.className = conv.id === activeConvId ? "active flex items-center justify-between w-full" : "flex items-center justify-between w-full";
+    a.className = conv.id === activeConvId ? "active flex items-center justify-between w-full min-w-0" : "flex items-center justify-between w-full min-w-0";
     a.dataset.id = conv.id;
 
     const titleSpan = document.createElement("span");
     titleSpan.className = "flex-1 truncate";
     titleSpan.textContent = conv.title;
+    titleSpan.title = conv.title;
 
     const actions = document.createElement("span");
     actions.className = "conv-actions";
@@ -419,6 +444,7 @@ async function send() {
         content: text,
         temperature: settings.temperature,
         system_prompt: settings.system_prompt,
+        strategy: settings.strategy,
       }),
     });
 
@@ -451,7 +477,17 @@ async function send() {
           if (data.token_usage) {
             updateContextBar(data.token_usage.prompt_tokens, data.token_usage.context_window);
           }
+          if (data.phase) {
+            // Show phase inside the bubble itself
+            assistantBubble.textContent = data.phase;
+            assistantBubble.classList.add("opacity-50", "italic");
+            if (data.replace) {
+              fullContent = "";
+            }
+            scrollToBottom();
+          }
           if (data.content) {
+            assistantBubble.classList.remove("opacity-50", "italic");
             fullContent += data.content;
             assistantBubble.textContent = fullContent;
             scrollToBottom();
