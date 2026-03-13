@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="black">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,7 @@
 <body class="h-dvh flex overflow-hidden">
 
   <!-- Sidebar -->
-  <aside class="w-60 bg-neutral flex flex-col shrink-0">
+  <aside class="w-60 bg-base-200 flex flex-col shrink-0">
     <div class="p-2">
       <button id="new-chat" class="btn btn-ghost btn-sm w-full justify-start gap-2 font-normal">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -20,10 +20,15 @@
       </button>
     </div>
 
-    <ul id="conv-list" class="menu menu-sm flex-1 overflow-y-auto px-2 gap-0.5"></ul>
+    <ul id="conv-list" class="menu menu-sm flex-1 overflow-y-auto px-2 gap-0.5 w-full"></ul>
 
-    <div class="p-3 border-t border-neutral-content/10">
-      <div class="flex items-center gap-2 text-xs text-neutral-content/40">
+    <div class="p-3 border-t border-base-content/10 space-y-2">
+      <select id="theme-select" class="select select-xs w-full">
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+      <div class="flex items-center gap-2 text-xs text-base-content/40">
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-success"></span>
         BitNet 2.4B · 1.58-bit
       </div>
@@ -52,11 +57,11 @@
           id="input"
           rows="1"
           placeholder="Message BitNet..."
-          class="textarea bg-neutral text-neutral-content border-none flex-1 text-sm leading-6 resize-none focus:outline-none"
+          class="textarea bg-base-200 border-none flex-1 text-sm leading-6 resize-none focus:outline-none"
           style="min-height: 48px; max-height: 160px; field-sizing: content;"
           autofocus
         ></textarea>
-        <button id="send" class="btn btn-neutral h-12 min-h-12">Send</button>
+        <button id="send" class="btn btn-primary h-12 min-h-12">Send</button>
       </div>
     </div>
   </main>

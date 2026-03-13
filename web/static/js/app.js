@@ -52,7 +52,7 @@ function renderConvList(convs) {
     if (conv.id === activeConvId) li.classList.add("active");
 
     const a = document.createElement("a");
-    a.className = conv.id === activeConvId ? "active flex items-center gap-1" : "flex items-center gap-1";
+    a.className = conv.id === activeConvId ? "active flex items-center justify-between w-full" : "flex items-center justify-between w-full";
     a.dataset.id = conv.id;
 
     const titleSpan = document.createElement("span");
@@ -354,6 +354,34 @@ function escapeHtml(s) {
   div.textContent = s;
   return div.innerHTML;
 }
+
+// --- Theme ---
+
+const LIGHT_THEME = "corporate";
+const DARK_THEME = "black";
+const themeSelect = document.getElementById("theme-select");
+
+function applyTheme(pref) {
+  let theme;
+  if (pref === "system") {
+    theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? DARK_THEME : LIGHT_THEME;
+  } else {
+    theme = pref === "light" ? LIGHT_THEME : DARK_THEME;
+  }
+  document.documentElement.setAttribute("data-theme", theme);
+}
+
+themeSelect.value = localStorage.getItem("bitnet-theme") || "system";
+applyTheme(themeSelect.value);
+
+themeSelect.addEventListener("change", function () {
+  localStorage.setItem("bitnet-theme", themeSelect.value);
+  applyTheme(themeSelect.value);
+});
+
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
+  if (themeSelect.value === "system") applyTheme("system");
+});
 
 // --- Init ---
 
